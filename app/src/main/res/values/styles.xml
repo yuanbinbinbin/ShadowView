@@ -1,0 +1,24 @@
+<resources>
+
+    <!-- Base application theme. -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+        <!-- Customize your theme here. -->
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+    </style>
+
+    <!--region ShadowView-->
+    <declare-styleable name="ShadowView">
+        <attr name="shadowBackgroundColor" format="color" />
+        <attr name="shadowColor" format="color" />
+        <attr name="shadowRadius" format="dimension" />
+        <attr name="shadowWidth" format="dimension" />
+        <attr name="shadowLeftWidth" format="dimension" />
+        <attr name="shadowRightWidth" format="dimension" />
+        <attr name="shadowTopWidth" format="dimension" />
+        <attr name="shadowBottomWidth" format="dimension" />
+    </declare-styleable>
+
+    <!--endregion-->
+</resources>
