@@ -2,6 +2,7 @@ package com.yb.shadowview.shadow;
 
 import android.content.Context;
 import android.content.res.TypedArray;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -36,6 +37,8 @@ public class ShadowView extends FrameLayout {
     private int shadowRadius;
     private Paint shadowPaint;
     private int shadowWidth;
+    private Bitmap shadowBitmap;
+    private boolean needRedraw;
 
     public ShadowView(@NonNull Context context) {
         this(context, null);
@@ -47,7 +50,6 @@ public class ShadowView extends FrameLayout {
 
     public ShadowView(@NonNull Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        setLayerType(LAYER_TYPE_SOFTWARE, null);
         shadowColor = Color.TRANSPARENT;
         shadowWidth = 0;
         shadowPaint = new Paint();
@@ -85,11 +87,29 @@ public class ShadowView extends FrameLayout {
     }
 
     @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        int originWidth = getMeasuredWidth();
+        int originHeight = getMeasuredHeight();
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+        if (getMeasuredWidth() != originWidth || originHeight != getMeasuredHeight()) {
+            needRedraw = true;
+        }
+    }
+
+    @Override
     protected void dispatchDraw(Canvas canvas) {
-        if (shadowColor != Color.TRANSPARENT && shadowWidth > 0) {
-            RectF rectF = new RectF(shadowLeftWidth, shadowTopWidth, getWidth() - shadowRightWidth, getHeight() - shadowBottomWidth);
-            canvas.drawRoundRect(rectF, shadowRadius, shadowRadius, shadowPaint);
-            canvas.save();
+        if (needRedraw) {
+            if ((shadowColor != Color.TRANSPARENT && shadowWidth > 0) || shadowBackground != Color.TRANSPARENT) {
+                setLayerType(LAYER_TYPE_SOFTWARE, null);
+                shadowBitmap = Bitmap.createBitmap(getWidth(), getHeight(), Bitmap.Config.ARGB_8888);
+                Canvas shadowCanvas = new Canvas(shadowBitmap);
+                RectF rectF = new RectF(shadowLeftWidth, shadowTopWidth, getWidth() - shadowRightWidth, getHeight() - shadowBottomWidth);
+                shadowCanvas.drawRoundRect(rectF, shadowRadius, shadowRadius, shadowPaint);
+            }
+            needRedraw = false;
+        }
+        if (shadowBitmap != null) {
+            canvas.drawBitmap(shadowBitmap, 0, 0, shadowPaint);
         }
         super.dispatchDraw(canvas);
     }
@@ -114,11 +134,16 @@ public class ShadowView extends FrameLayout {
     }
 
     public void setShadowBackground(String color) {
-        setShadowBackground(Color.parseColor(color));
+        try {
+            setShadowBackground(Color.parseColor(color));
+        } catch (Throwable t) {
+            Toast.makeText(getContext(), "色值错误", Toast.LENGTH_SHORT).show();
+        }
     }
 
     public void setShadowBackground(int shadowBackground) {
         this.shadowBackground = shadowBackground;
+        shadowPaint.setColor(shadowBackground);
         redrawShadow();
     }
 
@@ -161,7 +186,13 @@ public class ShadowView extends FrameLayout {
     }
 
     private void redrawShadow() {
-        postInvalidate();
+        post(new Runnable() {
+            @Override
+            public void run() {
+                needRedraw = true;
+                invalidate();
+            }
+        });
     }
 
     private int dp2px(int dp) {
