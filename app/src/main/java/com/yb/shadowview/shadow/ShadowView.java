@@ -12,10 +12,16 @@ import android.support.annotation.Nullable;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.util.TypedValue;
+import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
+
 import com.yb.shadowview.R;
+
+import java.lang.ref.SoftReference;
+import java.util.HashMap;
+import java.util.Map;
 
 
 /**
@@ -27,7 +33,6 @@ import com.yb.shadowview.R;
  */
 public class ShadowView extends FrameLayout {
     private static final int[] COLOR_BACKGROUND_ATTR = {android.R.attr.colorBackground};
-
     private int shadowColor;
     private int shadowBackground;
     private int shadowLeftWidth;
@@ -37,8 +42,6 @@ public class ShadowView extends FrameLayout {
     private int shadowRadius;
     private Paint shadowPaint;
     private int shadowWidth;
-    private Bitmap shadowBitmap;
-    private boolean needRedraw;
 
     public ShadowView(@NonNull Context context) {
         this(context, null);
@@ -91,27 +94,21 @@ public class ShadowView extends FrameLayout {
         int originWidth = getMeasuredWidth();
         int originHeight = getMeasuredHeight();
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-        if (getMeasuredWidth() != originWidth || originHeight != getMeasuredHeight()) {
-            needRedraw = true;
-        }
     }
 
     @Override
     protected void dispatchDraw(Canvas canvas) {
-        if (needRedraw) {
-            if ((shadowColor != Color.TRANSPARENT && shadowWidth > 0) || shadowBackground != Color.TRANSPARENT) {
-                setLayerType(LAYER_TYPE_SOFTWARE, null);
-                shadowBitmap = Bitmap.createBitmap(getWidth(), getHeight(), Bitmap.Config.ARGB_8888);
-                Canvas shadowCanvas = new Canvas(shadowBitmap);
-                RectF rectF = new RectF(shadowLeftWidth, shadowTopWidth, getWidth() - shadowRightWidth, getHeight() - shadowBottomWidth);
-                shadowCanvas.drawRoundRect(rectF, shadowRadius, shadowRadius, shadowPaint);
+        try {
+            Bitmap shadowBitmap = ShadowFactory.createBitmap(this, shadowPaint, getWidth(), getHeight(),
+                    shadowColor, shadowBackground, shadowLeftWidth, shadowRightWidth,
+                    shadowTopWidth, shadowBottomWidth, shadowRadius, shadowWidth);
+            if (shadowBitmap != null) {
+                canvas.drawBitmap(shadowBitmap, 0, 0, shadowPaint);
+                canvas.save();
             }
-            needRedraw = false;
+            super.dispatchDraw(canvas);
+        } catch (Throwable t) {
         }
-        if (shadowBitmap != null) {
-            canvas.drawBitmap(shadowBitmap, 0, 0, shadowPaint);
-        }
-        super.dispatchDraw(canvas);
     }
 
     @Override
@@ -160,7 +157,6 @@ public class ShadowView extends FrameLayout {
         setShadowWidthPx(dp2px(shadowLeftWidth), dp2px(shadowRightWidth), dp2px(shadowTopWidth), dp2px(shadowBottomWidth));
     }
 
-
     public void setShadowWidthPx(int shadowLeftWidth, int shadowRightWidth, int shadowTopWidth, int shadowBottomWidth) {
         super.setPadding(getPaddingLeft() - this.shadowLeftWidth + shadowLeftWidth, getPaddingTop() - this.shadowTopWidth + shadowTopWidth,
                 getPaddingRight() - this.shadowRightWidth + shadowRightWidth, getPaddingBottom() - this.shadowBottomWidth + shadowBottomWidth);
@@ -186,13 +182,7 @@ public class ShadowView extends FrameLayout {
     }
 
     private void redrawShadow() {
-        post(new Runnable() {
-            @Override
-            public void run() {
-                needRedraw = true;
-                invalidate();
-            }
-        });
+        postInvalidate();
     }
 
     private int dp2px(int dp) {
@@ -208,5 +198,50 @@ public class ShadowView extends FrameLayout {
         Log.e("test", Color.alpha(color) + " " + Color.red(color) + " " + Color.green(color) + " " + Color.blue(color));
         Log.e("test", Color.alpha(darkerColor) + " " + Color.red(darkerColor) + " " + Color.green(darkerColor) + " " + Color.blue(darkerColor));
         return color;
+    }
+
+    private static class ShadowFactory {
+        static Map<String, SoftReference<Bitmap>> shadows = new HashMap<String, SoftReference<Bitmap>>();
+
+        static Bitmap createBitmap(View view, Paint shadowPaint, int widgetWidth, int widgetHeight, int shadowColor,
+                                   int shadowBackground,
+                                   int shadowLeftWidth,
+                                   int shadowRightWidth,
+                                   int shadowTopWidth,
+                                   int shadowBottomWidth,
+                                   int shadowRadius,
+                                   int shadowWidth) {
+            if (widgetWidth <= 0 || widgetHeight <= 0) {
+                return null;
+            }
+            if ((shadowColor != Color.TRANSPARENT && shadowWidth > 0) || shadowBackground != Color.TRANSPARENT) {
+                StringBuilder key = new StringBuilder("");
+                key.append(widgetWidth);
+                key.append(widgetHeight);
+                key.append(shadowColor);
+                key.append(shadowBackground);
+                key.append(shadowLeftWidth);
+                key.append(shadowRightWidth);
+                key.append(shadowTopWidth);
+                key.append(shadowBottomWidth);
+                key.append(shadowRadius);
+                key.append(shadowWidth);
+                SoftReference<Bitmap> softReference = shadows.get(key.toString());
+                Bitmap bitmap = null;
+                if (softReference != null) {
+                    bitmap = softReference.get();
+                }
+                if (bitmap == null) {
+                    view.setLayerType(LAYER_TYPE_SOFTWARE, null);
+                    bitmap = Bitmap.createBitmap(widgetWidth, widgetHeight, Bitmap.Config.ARGB_8888);
+                    Canvas shadowCanvas = new Canvas(bitmap);
+                    RectF rectF = new RectF(shadowLeftWidth, shadowTopWidth, widgetWidth - shadowRightWidth, widgetHeight - shadowBottomWidth);
+                    shadowCanvas.drawRoundRect(rectF, shadowRadius, shadowRadius, shadowPaint);
+                    shadows.put(key.toString(), new SoftReference<Bitmap>(bitmap));
+                }
+                return bitmap;
+            }
+            return null;
+        }
     }
 }
